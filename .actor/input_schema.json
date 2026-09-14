@@ -13,12 +13,12 @@
             "default": "This is a fallback test query, do nothing and !!do not call any tools!!. If asked to generate structured response, create a dummy one without optional fields - minimal as possible."
         },
         "modelName": {
-            "title": "OpenAI model",
+            "title": "Model name",
             "type": "string",
-            "description": "The OpenAI model to use. Currently supported models are gpt-4o and gpt-4o-mini, and the reasoning models o1 and o3-mini.",
-            "enum": ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
-            "default": "gpt-4o-mini",
-            "prefill": "gpt-4o-mini"
+            "description": "The model to use (OpenAI, Gemini, or any OpenAI-compatible model name).",
+            "editor": "textfield",
+            "default": "gemini-2.0-flash",
+            "prefill": "gemini-2.0-flash"
         },
         "debug": {
             "title": "Debug",
