@@ -1,32 +1,31 @@
 {
     "$schema": "https://apify.com/schemas/v1/input.ide.json",
-    "title": "LangGraph Agent Python",
+    "title": "Job Scout",
     "type": "object",
     "schemaVersion": 1,
     "properties": {
-        "query": {
-            "title": "Query",
+        "what": {
+            "title": "Job title / keywords",
             "type": "string",
-            "description": "Query for the agent.",
+            "description": "What to search for, e.g. 'Business Analyst'.",
             "editor": "textfield",
-            "prefill": "What is the total number of likes and the total number of comments for the latest 10 posts on the @openai Instagram account? From the 10 latest posts, show me the most popular one.",
-            "default": "This is a fallback test query, do nothing and !!do not call any tools!!. If asked to generate structured response, create a dummy one without optional fields - minimal as possible."
+            "prefill": "Business Analyst"
         },
-        "modelName": {
-            "title": "Model name",
+        "where": {
+            "title": "Location",
             "type": "string",
-            "description": "The model to use (OpenAI, Gemini, or any OpenAI-compatible model name).",
+            "description": "City or region to search in, e.g. 'Bangalore'.",
             "editor": "textfield",
-            "default": "gemini-2.0-flash",
-            "prefill": "gemini-2.0-flash"
+            "prefill": "Bangalore"
         },
-        "debug": {
-            "title": "Debug",
-            "type": "boolean",
-            "description": "If enabled, the Actor will run in debug mode and produce more output.",
-            "editor": "checkbox",
-            "default": false
+        "results_wanted": {
+            "title": "Number of results",
+            "type": "integer",
+            "description": "How many job listings to fetch (keep small for testing).",
+            "editor": "number",
+            "default": 5,
+            "prefill": 5
         }
     },
-    "required": ["query"]
+    "required": ["what"]
 }
