@@ -1,84 +1,70 @@
 """Module defines the main entry point for the Apify Actor.
 
-Feel free to modify this file to suit your specific needs.
-
-To build Apify Actors, use the Apify SDK toolkit, read more at the official documentation:
-https://docs.apify.com/sdk/python
+Fetches real job postings from the Adzuna Jobs API based on the Actor's input
+and pushes structured records to the dataset.
 """
 
 from __future__ import annotations
 
-import logging
+import json
+import os
+import urllib.parse
+import urllib.request
 
 from apify import Actor
-from langchain.agents import create_agent
-from langchain_openai import ChatOpenAI
 
-from .models import AgentStructuredOutput
-from .tools import tool_calculator_sum, tool_scrape_instagram_profile_posts
-from .utils import log_state
+ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs/in/search/1"
 
 
 async def main() -> None:
-    """Define a main entry point for the Apify Actor.
-
-    This coroutine is executed using `asyncio.run()`, so it must remain an asynchronous function for proper execution.
-    Asynchronous execution is required for communication with Apify platform, and it also enhances performance in
-    the field of web scraping significantly.
-
-    Raises:
-        ValueError: If the input is missing required attributes.
-    """
+    """Define the main entry point for the Apify Actor."""
     async with Actor:
-        # Charge for Actor start
-        await Actor.charge('actor-start')
+        actor_input = await Actor.get_input() or {}
 
-        # Handle input
-        actor_input = await Actor.get_input()
-
-        query = actor_input.get('query')
-        if not query:
-            msg = 'Missing "query" attribute in input!'
+        what = actor_input.get("what")
+        if not what:
+            msg = 'Missing "what" (job title / keywords) attribute in input!'
             raise ValueError(msg)
 
-        model_name = actor_input.get('modelName', 'gpt-4o-mini')
-        if actor_input.get('debug', False):
-            Actor.log.setLevel(logging.DEBUG)
+        where = actor_input.get("where", "")
+        results_wanted = actor_input.get("results_wanted", 5)
 
-        llm = ChatOpenAI(model=model_name)
+        app_id = os.environ.get("ADZUNA_APP_ID")
+        app_key = os.environ.get("ADZUNA_APP_KEY")
+        if not app_id or not app_key:
+            msg = "Missing ADZUNA_APP_ID / ADZUNA_APP_KEY environment variables!"
+            raise ValueError(msg)
 
-        # Create the agent graph
-        # see https://docs.langchain.com/oss/python/langchain/agents
-        tools = [tool_calculator_sum, tool_scrape_instagram_profile_posts]
-        graph = create_agent(llm, tools, response_format=AgentStructuredOutput)
+        params = {
+            "app_id": app_id,
+            "app_key": app_key,
+            "results_per_page": str(results_wanted),
+            "what": what,
+            "content-type": "application/json",
+        }
+        if where:
+            params["where"] = where
 
-        inputs: dict = {'messages': [('user', query)]}
-        response: AgentStructuredOutput | None = None
-        last_message: str | None = None
-        async for state in graph.astream(inputs, stream_mode='values'):
-            log_state(state)
-            if 'structured_response' in state:
-                response = state['structured_response']
-                last_message = state['messages'][-1].content
-                break
+        url = f"{ADZUNA_BASE_URL}?{urllib.parse.urlencode(params)}"
+        Actor.log.info(f"Searching Adzuna for what={what!r} where={where!r} ...")
 
-        if not response or not last_message:
-            Actor.log.error('Failed to get a response from the agent!')
-            await Actor.fail(status_message='Failed to get a response from the agent!')
-            return
+        with urllib.request.urlopen(url, timeout=30) as response:
+            data = json.loads(response.read().decode("utf-8"))
 
-        # Charge for task completion
-        await Actor.charge('task-completed')
+        results = data.get("results", [])
+        Actor.log.info(f"Adzuna returned {len(results)} job(s).")
 
-        # Push results to the key-value store and dataset
-        store = await Actor.open_key_value_store()
-        await store.set_value('response.txt', last_message)
-        Actor.log.info('Saved the "response.txt" file into the key-value store!')
-
-        await Actor.push_data(
-            {
-                'response': last_message,
-                'structured_response': response.dict(),
+        for job in results:
+            record = {
+                "job_id": str(job.get("id", "")),
+                "company": (job.get("company") or {}).get("display_name", ""),
+                "title": job.get("title", ""),
+                "location": (job.get("location") or {}).get("display_name", ""),
+                "job_url": job.get("redirect_url", ""),
+                "description": job.get("description", ""),
+                "posted_date": job.get("created", ""),
+                "source": "Adzuna",
             }
-        )
-        Actor.log.info('Pushed data into the dataset!')
+            await Actor.push_data(record)
+
+        Actor.log.info("Pushed all job records into the dataset!")
